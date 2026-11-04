@@ -1,5 +1,13 @@
 # Notes for Claude
 
+## Dependabot auto-merge
+
+Dependabot minor/patch PRs merge themselves once CI's `check` job passes (the `automerge` job in
+`.github/workflows/ci.yml`), then start the deploy. Majors wait for Stewart. Every deploy ends with
+a `smoke` job that checks the live homepage and opens an issue if it fails. A failed-smoke issue
+means the latest deploy broke the site: find the cause, and if it was a Dependabot update, propose
+reverting its merge commit.
+
 ## After a PR merges: run the content smoke checks
 
 Every merge to `master` deploys the live site (`.github/workflows/deploy.yml`, GitHub Pages).
