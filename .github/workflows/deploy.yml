@@ -4,11 +4,6 @@ on:
   push:
     branches: [master]
   workflow_dispatch:
-    inputs:
-      test_alert:
-        description: "Test the failure alert: skip the deploy and open a test issue (the live site isn't touched)"
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -21,7 +16,6 @@ concurrency:
 
 jobs:
   build:
-    if: ${{ !inputs.test_alert }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -41,8 +35,6 @@ jobs:
   # issue, so Stewart hears about it even when the deploy was started by the Dependabot auto-merge.
   smoke:
     needs: deploy
-    # Runs after a successful deploy, or on its own for a test alert.
-    if: ${{ !cancelled() && (inputs.test_alert || needs.deploy.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -50,12 +42,7 @@ jobs:
       - name: Check the live site
         env:
           SITE: https://www.theocmusical.com
-          TEST_ALERT: ${{ inputs.test_alert }}
         run: |
-          if [ "$TEST_ALERT" = true ]; then
-            echo "This is a test alert: nothing is wrong with the site." > reason.txt
-            echo "::error::Test alert requested; failing on purpose to test the issue step"; exit 1
-          fi
           not_before=$(( $(date -u +%s) - 600 ))
           check() {
             code=$(curl -sS -L -m 30 -o page.html -D headers.txt -w '%{http_code}' "$SITE/") || { echo "Couldn't load $SITE"; return 1; }
@@ -87,13 +74,11 @@ jobs:
         if: failure()
         env:
           GH_TOKEN: ${{ github.token }}
-          TEST_ALERT: ${{ inputs.test_alert }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           reason=$(cat reason.txt 2>/dev/null || echo "see the run log")
-          prefix=""; [ "$TEST_ALERT" = true ] && prefix="[Test] "
           gh issue create --repo "$GITHUB_REPOSITORY" \
-            --title "${prefix}Live site check failed after deploy of ${GITHUB_SHA::7}" \
+            --title "Live site check failed after deploy of ${GITHUB_SHA::7}" \
             --body "The post-deploy check of https://www.theocmusical.com failed: $reason
 
           Run: $RUN_URL
